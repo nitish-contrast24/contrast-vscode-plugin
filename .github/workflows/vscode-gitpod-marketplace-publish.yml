@@ -33,10 +33,14 @@ jobs:
       - name: Build extension
         run: npm run build
 
-      # 5️⃣ Run tests (optional)
+      # 5️⃣a Run tests (optional)
       - name: Run tests
         run: npx jest || echo "No tests found, skipping..."
-
+        
+      # 5️⃣b Run unit tests
+      - name: Run Unit tests
+        run: npm run uitest
+        
       # 6️⃣ Ensure vsce is installed
       - name: Ensure vsce is installed
         run: |
