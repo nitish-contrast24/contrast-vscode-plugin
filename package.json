@@ -1,6 +1,6 @@
 {
-  "name": "contrastsecurity-ms-vscode",
-  "displayName": "Contrast ms-vscode-test",
+  "name": "contrastsecurity-ms-vscode-test",
+  "displayName": "Contrast ms-vscode",
   "description": "By integrating the Contrast Security Visual Studio Code extension into your IDE you can quickly map vulnerabilities to your source code directly at the file and line number by importing your ( IAST & SCA ) or SAST vulnerabilities from your latest sessions or scans, providing real-time actionable insight and remediatal guidance on each of the vulnerability found",
   "version": "1.0.2",
   "publisher": "sacumen-ms-vscode-test",
