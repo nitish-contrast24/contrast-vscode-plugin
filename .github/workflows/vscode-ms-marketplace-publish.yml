@@ -37,6 +37,20 @@ jobs:
       - name: Run tests
         run: npx jest || echo "No tests found, skipping..."
 
+      # 5️⃣ UI tests require Xvfb
+      - name: Install xvfb
+        run: sudo apt-get install -y xvfb
+
+      - name: Start Xvfb
+        run: |
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1920x1080x24 &
+      - name: Run VS Code UI Tests
+        env:
+          DISPLAY: :99
+        run: npm run uitest
+        
+
       # 6️⃣ Ensure vsce is installed
       - name: Ensure vsce is installed
         run: |
@@ -48,15 +62,39 @@ jobs:
           fi
 
       # 7️⃣ Bump patch version automatically
-      - name: Bump version (patch)
-        id: bump
-        run: |
-          current_version=$(node -p "require('./package.json').version")
-          echo "Current version: $current_version"
-          npm version patch --no-git-tag-version
-          new_version=$(node -p "require('./package.json').version")
-          echo "version=$new_version" >> $GITHUB_OUTPUT
-          echo "Version bumped to: $new_version"
+- name: Bump version
+  id: bump
+  run: |
+    # Custom version bump logic (y/z max 9)
+    node <<'EOF'
+    const fs = require("fs");
+
+    function bumpVersion(currentVersion) {
+      let [x, y, z] = currentVersion.split('.').map(Number);
+
+      z++;
+      if (z > 9) {
+        z = 0;
+        y++;
+      }
+      if (y > 9) {
+        y = 0;
+        x++;
+      }
+
+      return `${x}.${y}.${z}`;
+    }
+
+    const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    const newVersion = bumpVersion(pkg.version);
+
+    pkg.version = newVersion;
+    fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+
+    console.log("New version:", newVersion);
+
+    fs.writeFileSync(process.env.GITHUB_OUTPUT, `version=${newVersion}\n`, { flag: "a" });
+    EOF
 
       # 8️⃣ Package extension
       - name: Package extension
