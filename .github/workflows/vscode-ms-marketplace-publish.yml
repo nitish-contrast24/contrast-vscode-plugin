@@ -71,6 +71,16 @@ jobs:
           fs.writeFileSync(process.env.GITHUB_OUTPUT, `version=${newVersion}\n`, { flag: "a" });
           EOF
 
+      # 6️⃣ Ensure vsce is installed
+      - name: Ensure vsce is installed
+        run: |
+          if ! command -v vsce &> /dev/null; then
+            echo "vsce not found, installing..."
+            npm install -g @vscode/vsce
+          else
+            echo "vsce already installed ✅"
+          fi
+          
       # 9️⃣ Package extension
       - name: Package extension
         run: vsce package
