@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # ✅ allows git push using GITHUB_TOKEN
+  contents: write
 
 jobs:
   build_and_publish:
@@ -33,11 +33,11 @@ jobs:
       - name: Build extension
         run: npm run build
 
-      # 5️⃣ Run tests (optional)
+      # 5️⃣ Run tests
       - name: Run tests
         run: npx jest || echo "No tests found, skipping..."
 
-      # 5️⃣ UI tests require Xvfb
+      # 6️⃣ Install Xvfb
       - name: Install xvfb
         run: sudo apt-get install -y xvfb
 
@@ -45,99 +45,92 @@ jobs:
         run: |
           export DISPLAY=:99
           Xvfb :99 -screen 0 1920x1080x24 &
+
       - name: Run VS Code UI Tests
         env:
           DISPLAY: :99
         run: npm run uitest
-        
 
-      # 6️⃣ Ensure vsce is installed
+      # 7️⃣ Ensure vsce is installed
       - name: Ensure vsce is installed
         run: |
           if ! command -v vsce &> /dev/null; then
-            echo "vsce not found, installing..."
             npm install -g @vscode/vsce
-          else
-            echo "vsce already installed ✅"
           fi
 
-      # 7️⃣ Bump patch version automatically
-- name: Bump version
-  id: bump
-  run: |
-    # Custom version bump logic (y/z max 9)
-    node <<'EOF'
-    const fs = require("fs");
+      # 8️⃣ Custom Version Bump (x.y.z with y,z ≤ 9)
+      - name: Bump version
+        id: bump
+        run: |
+          node <<'EOF'
+          const fs = require("fs");
 
-    function bumpVersion(currentVersion) {
-      let [x, y, z] = currentVersion.split('.').map(Number);
+          function bumpVersion(currentVersion) {
+            let [x, y, z] = currentVersion.split('.').map(Number);
 
-      z++;
-      if (z > 9) {
-        z = 0;
-        y++;
-      }
-      if (y > 9) {
-        y = 0;
-        x++;
-      }
+            z++;
+            if (z > 9) {
+              z = 0;
+              y++;
+            }
+            if (y > 9) {
+              y = 0;
+              x++;
+            }
 
-      return `${x}.${y}.${z}`;
-    }
+            return `${x}.${y}.${z}`;
+          }
 
-    const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-    const newVersion = bumpVersion(pkg.version);
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          const newVersion = bumpVersion(pkg.version);
 
-    pkg.version = newVersion;
-    fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+          pkg.version = newVersion;
+          fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
 
-    console.log("New version:", newVersion);
+          console.log("New version:", newVersion);
 
-    fs.writeFileSync(process.env.GITHUB_OUTPUT, `version=${newVersion}\n`, { flag: "a" });
-    EOF
+          fs.writeFileSync(process.env.GITHUB_OUTPUT, `version=${newVersion}\n`, { flag: "a" });
+          EOF
 
-      # 8️⃣ Package extension
+      # 9️⃣ Package extension
       - name: Package extension
         run: vsce package
 
-      # 9️⃣ Check if version already exists on Marketplace
+      # 🔟 Check if version already exists in MS Marketplace
       - name: Check if version already exists in Marketplace
         id: check_version
         run: |
           EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
           VERSION=$(node -p "require('./package.json').version")
-          echo "Checking if $EXTENSION_ID@$VERSION already exists on Marketplace..."
+          echo "Checking if $EXTENSION_ID@$VERSION already exists..."
+
           if npx vsce show $EXTENSION_ID@$VERSION -p ${{ secrets.VS_MARKETPLACE_TOKEN }} >/dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "⚠️ Version $VERSION already exists. Skipping publish."
+            echo "⚠️ Version exists — skipping publish."
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "✅ Version $VERSION does not exist. Proceeding with publish."
+            echo "OK to publish."
           fi
 
-      # 🔟 Publish safely (handles "already exists" gracefully)
+      # 1️⃣1️⃣ Publish to Visual Studio Marketplace
       - name: Publish to Visual Studio Marketplace
         if: steps.check_version.outputs.exists == 'false'
         run: |
-          echo "⏳ Publishing to Visual Studio Marketplace..."
+          echo "Publishing to MS Marketplace..."
           set +e
           output=$(npx vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }} 2>&1)
           exit_code=$?
           echo "$output"
 
           if echo "$output" | grep -q "already exists"; then
-            echo "⚠️ Detected 'already exists' message — publish actually succeeded."
             exit 0
           fi
 
           if [ $exit_code -ne 0 ]; then
-            echo "❌ Publish failed with unexpected error."
             exit $exit_code
           fi
 
-          echo "✅ Publish step completed successfully."
-
-      # 1️⃣ Commit and push version bump
+      # 1️⃣2️⃣ Commit + Push Version Bump
       - name: Commit and push version bump
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -146,13 +139,11 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           branch=${GITHUB_REF_NAME}
-          echo "Current branch: $branch"
-
           git add package.json package-lock.json
-          git commit -m "Bump version to ${{ steps.bump.outputs.version }}" || echo "No changes to commit"
+          git commit -m "Bump version to ${{ steps.bump.outputs.version }}" || echo "No changes"
           git push origin HEAD:$branch
 
-      # 1️⃣ Upload generated .vsix artifact
+      # 1️⃣3️⃣ Upload VSIX artifact
       - name: Upload packaged VSIX
         uses: actions/upload-artifact@v4
         with:
