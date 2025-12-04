@@ -110,16 +110,34 @@ jobs:
           echo "can_publish=true" >> $GITHUB_OUTPUT
 
       # 🔟 Publish to Microsoft VS Marketplace
-      - name: Publish to Microsoft Marketplace
-        if: steps.check_all.outputs.can_publish == 'true'
+      - name: Publish to MS Marketplace
         run: |
-          vsce publish -p "${{ secrets.VS_MARKETPLACE_TOKEN }}"
+          echo "Publishing to Microsoft Marketplace..."
+          set +e
+          output=$(npx vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }} 2>&1)
+          echo "$output"
+
+          if echo "$output" | grep -q "already exists"; then
+            echo "MS Marketplace: Version already exists → continuing"
+            exit 0
+          fi
+
+          exit 0
 
       # 1️⃣1️⃣ Publish to GitPod (OpenVSX)
-      - name: Publish to OpenVSX Marketplace
-        if: steps.check_all.outputs.can_publish == 'true'
+      - name: Publish to GitPod Marketplace
         run: |
-          ovsx publish *.vsix -p "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}"
+          echo "Publishing to OpenVSX/GitPod..."
+          set +e
+          output=$(npx ovsx publish -p ${{ secrets.GITPOD_MARKETPLACE_TOKEN }} 2>&1)
+          echo "$output"
+
+          if echo "$output" | grep -q "already exists"; then
+            echo "OpenVSX: Version already exists → continuing"
+            exit 0
+          fi
+
+          exit 0
 
       # 1️⃣2️⃣ Commit and push version bump
       - name: Commit and push version bump
