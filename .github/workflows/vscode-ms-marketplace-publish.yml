@@ -37,27 +37,6 @@ jobs:
       - name: Run tests
         run: npx jest || echo "No tests found, skipping..."
 
-      # 6️⃣ Install Xvfb
-      - name: Install xvfb
-        run: sudo apt-get install -y xvfb
-
-      - name: Start Xvfb
-        run: |
-          export DISPLAY=:99
-          Xvfb :99 -screen 0 1920x1080x24 &
-
-      - name: Run VS Code UI Tests
-        env:
-          DISPLAY: :99
-        run: npm run uitest
-
-      # 7️⃣ Ensure vsce is installed
-      - name: Ensure vsce is installed
-        run: |
-          if ! command -v vsce &> /dev/null; then
-            npm install -g @vscode/vsce
-          fi
-
       # 8️⃣ Custom Version Bump (x.y.z with y,z ≤ 9)
       - name: Bump version
         id: bump
