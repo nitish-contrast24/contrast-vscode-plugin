@@ -144,7 +144,7 @@ jobs:
         run: |
           echo "⏳ Publishing to GitPod Marketplace..."
           set +e
-          output=$(npx ovsx publish -p ${{ secrets.GITPOD_MARKETPLACE_TOKEN }} 2>&1)
+          output=$(npx ovsx publish -p ${{ secrets.GITPOD_MARKETPLACE_TOKENS }} 2>&1)
           exit_code=$?
           echo "$output"
 
