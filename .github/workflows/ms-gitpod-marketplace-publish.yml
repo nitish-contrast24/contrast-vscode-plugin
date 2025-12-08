@@ -37,7 +37,7 @@ jobs:
       - name: Run tests
         run: npx jest || echo "No tests found"
 
-      # 6️⃣ Custom Version Bump (x.y.z with y,z ≤ 9)
+      # 6️⃣ Custom Version Bump (x.y.z pattern with max 9)
       - name: Bump version
         id: bump
         run: |
@@ -46,11 +46,9 @@ jobs:
 
           function bumpVersion(currentVersion) {
             let [x, y, z] = currentVersion.split('.').map(Number);
-
             z++;
             if (z > 9) { z = 0; y++; }
             if (y > 9) { y = 0; x++; }
-
             return `${x}.${y}.${z}`;
           }
 
@@ -74,70 +72,53 @@ jobs:
       - name: Package extension
         run: vsce package
 
-      # 9️⃣ Check version + display current deployed versions in BOTH marketplaces
-- name: Check versions in both Marketplaces
-  id: check_version
-  run: |
-    EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
-    VERSION=$(node -p "require('./package.json').version")
+      # 9️⃣ Check + display current deployed versions in BOTH marketplaces
+      - name: Check versions in both Marketplaces
+        id: check_version
+        run: |
+          EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
 
-    echo "🔍 Checking extension: $EXTENSION_ID"
-    echo "🔍 New version to publish: $VERSION"
-    echo ""
+          echo "🔍 Checking extension: $EXTENSION_ID"
+          echo "🔍 New version to publish: $VERSION"
+          echo ""
 
-    # -------------------------
-    # Microsoft Marketplace
-    # -------------------------
-    echo "📌 Microsoft Marketplace:"
-    MS_VERSION=$(npx vsce show $EXTENSION_ID -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" 2>/dev/null | grep "Version:" | awk '{print $2}')
+          ms_exists=false
+          gitpod_exists=false
 
-    if [ -z "$MS_VERSION" ]; then
-      echo " ❌ Not published on Microsoft Marketplace"
-      ms_exists=false
-    else
-      echo " ✅ Current version on MS Marketplace = $MS_VERSION"
+          echo "📌 Microsoft Marketplace:"
+          MS_VERSION=$(npx vsce show $EXTENSION_ID -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" 2>/dev/null | grep "Version:" | awk '{print $2}')
 
-      if [ "$MS_VERSION" = "$VERSION" ]; then
-        ms_exists=true
-      else
-        ms_exists=false
-      fi
-    fi
+          if [ -z "$MS_VERSION" ]; then
+            echo " ❌ Not published on Microsoft Marketplace"
+          else
+            echo " ✅ Current version on MS Marketplace = $MS_VERSION"
+            if [ "$MS_VERSION" = "$VERSION" ]; then ms_exists=true; fi
+          fi
 
-    echo ""
-    # -------------------------
-    # GitPod / OpenVSX
-    # -------------------------
-    echo "📌 GitPod / OpenVSX Marketplace:"
-    GITPOD_VERSION=$(npx ovsx show $EXTENSION_ID -p "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" 2>/dev/null | grep "Version:" | awk '{print $2}')
+          echo ""
+          echo "📌 GitPod / OpenVSX Marketplace:"
+          GITPOD_VERSION=$(npx ovsx show $EXTENSION_ID -p "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" 2>/dev/null | grep "Version:" | awk '{print $2}')
 
-    if [ -z "$GITPOD_VERSION" ]; then
-      echo " ❌ Not published on GitPod/OpenVSX"
-      gitpod_exists=false
-    else
-      echo " ✅ Current version on GitPod/OpenVSX = $GITPOD_VERSION"
+          if [ -z "$GITPOD_VERSION" ]; then
+            echo " ❌ Not published on GitPod/OpenVSX"
+          else
+            echo " ✅ Current version on GitPod/OpenVSX = $GITPOD_VERSION"
+            if [ "$GITPOD_VERSION" = "$VERSION" ]; then gitpod_exists=true; fi
+          fi
 
-      if [ "$GITPOD_VERSION" = "$VERSION" ]; then
-        gitpod_exists=true
-      else
-        gitpod_exists=false
-      fi
-    fi
+          echo ""
+          echo "-----------------------------------------"
+          echo "🧪 Comparing with new version: $VERSION"
+          echo "-----------------------------------------"
 
-    echo ""
-    echo "-----------------------------------------"
-    echo "🧪 Comparing with new version: $VERSION"
-    echo "-----------------------------------------"
-
-    # Decide if safe to publish
-    if [ "$ms_exists" = true ] || [ "$gitpod_exists" = true ]; then
-      echo "exists=true" >> $GITHUB_OUTPUT
-      echo "⛔ Version $VERSION already exists — blocking publish."
-    else
-      echo "exists=false" >> $GITHUB_OUTPUT
-      echo "✔ Version $VERSION does NOT exist — safe to publish."
-    fi
-
+          if [ "$ms_exists" = true ] || [ "$gitpod_exists" = true ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⛔ Version $VERSION already exists — blocking publish."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✔ Version $VERSION does NOT exist — safe to publish."
+          fi
 
       # 🔟 Publish to Microsoft Marketplace ONLY IF SAFE
       - name: Publish to Visual Studio Marketplace
@@ -161,7 +142,7 @@ jobs:
       - name: Publish to GitPod Visual Studio Marketplace
         if: steps.check_version.outputs.exists == 'false'
         run: |
-          echo "⏳ Publishing to Visual Studio Marketplace..."
+          echo "⏳ Publishing to GitPod Marketplace..."
           set +e
           output=$(npx ovsx publish -p ${{ secrets.GITPOD_MARKETPLACE_TOKEN }} 2>&1)
           exit_code=$?
@@ -176,9 +157,9 @@ jobs:
             echo "❌ Publish failed with unexpected error."
             exit $exit_code
           fi
-
-          echo "✅ Publish step completed successfully."
           
+          echo "✅ Publish step completed successfully."
+
       # 1️⃣2️⃣ Commit version bump
       - name: Commit and push version bump
         env:
@@ -191,7 +172,7 @@ jobs:
           git commit -m "Bump version to ${{ steps.bump.outputs.version }}" || echo "No changes"
           git push origin HEAD:${GITHUB_REF_NAME}
 
-      # 1️⃣3️⃣ Upload .vsix
+      # 1️⃣3️⃣ Upload .vsix as build artifact
       - name: Upload VSIX Artifact
         uses: actions/upload-artifact@v4
         with:
