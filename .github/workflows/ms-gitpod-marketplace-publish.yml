@@ -75,33 +75,36 @@ jobs:
         run: vsce package
 
       # 9️⃣ Always Check version in BOTH marketplaces
-      - name: Check if version already exists in Marketplace
+      - name: Check if version exists in both Marketplaces
         id: check_version
         run: |
           EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
           VERSION=$(node -p "require('./package.json').version")
-          echo "Checking if $EXTENSION_ID@$VERSION already exists on Marketplace..."
-          if npx vsce show $EXTENSION_ID@$VERSION -p ${{ secrets.GITPOD_MARKETPLACE_TOKEN }} >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "⚠️ Version $VERSION already exists. Skipping publish."
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "✅ Version $VERSION does not exist. Proceeding with publish."
-          fi
-      - name: Check if version already exists in Marketplace
-        id: check_version
-        run: |
-          EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
-          echo "Checking if $EXTENSION_ID@$VERSION already exists..."
 
-          if npx vsce show $EXTENSION_ID@$VERSION -p ${{ secrets.VS_MARKETPLACE_TOKEN }} >/dev/null 2>&1; then
+          echo "Checking $EXTENSION_ID@$VERSION in both Marketplaces..."
+
+          ms_exists=false
+          gitpod_exists=false
+
+          # Check Microsoft Marketplace
+          if npx vsce show $EXTENSION_ID@$VERSION -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" >/dev/null 2>&1; then
+           ms_exists=true
+          fi
+
+          # Check GitPod/OpenVSX Marketplace
+          if npx ovsx show $EXTENSION_ID@$VERSION -p "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" >/dev/null 2>&1; then
+            gitpod_exists=true
+          fi
+
+          # If version exists anywhere → do NOT publish
+          if [ "$ms_exists" = true ] || [ "$gitpod_exists" = true ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "⚠️ Version exists — skipping publish."
+            echo "⛔ Version $VERSION already exists — blocking publish."
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "OK to publish."
+            echo "✔ Version $VERSION does not exist — safe to publish."
           fi
+
 
       # 🔟 Publish to Microsoft Marketplace ONLY IF SAFE
       - name: Publish to Visual Studio Marketplace
