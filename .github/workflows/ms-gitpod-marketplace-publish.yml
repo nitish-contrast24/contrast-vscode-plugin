@@ -75,36 +75,78 @@ jobs:
         run: vsce package
 
       # 9️⃣ Check version in BOTH marketplaces
+      - name: Check version in both Marketplaces
+        id: check_all
+        run: |
+          EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
 
+          echo "Checking $EXTENSION_ID@$VERSION in both marketplaces..."
+
+          # Microsoft Marketplace
+          if npx vsce show $EXTENSION_ID@$VERSION -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" >/dev/null 2>&1; then
+            ms_exists=true
+          else
+            ms_exists=false
+          fi
+
+          # GitPod/OpenVSX Marketplace
+          if npx ovsx show $EXTENSION_ID@$VERSION -p "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" >/dev/null 2>&1; then
+            gitpod_exists=true
+          else
+            gitpod_exists=false
+          fi
+
+          # Decide if safe to publish
+          if [ "$ms_exists" = true ] || [ "$gitpod_exists" = true ]; then
+            echo "can_publish=false" >> $GITHUB_OUTPUT
+            echo "⛔ Version exists in either MS or GitPod Marketplace — blocking publish."
+            exit 0
+          fi
+
+          echo "can_publish=true" >> $GITHUB_OUTPUT
+          echo "✔ Version does not exist in either marketplace — safe to publish."
 
       # 🔟 Publish to Microsoft Marketplace ONLY IF SAFE
-      - name: Publish to MS Marketplace
-        if: steps.check_all.outputs.can_publish == 'true'
+      - name: Publish to Visual Studio Marketplace
+        if: steps.check_version.outputs.exists == 'false'
         run: |
-          echo "Publishing to Microsoft Marketplace..."
+          echo "Publishing to MS Marketplace..."
           set +e
           output=$(npx vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }} 2>&1)
+          exit_code=$?
           echo "$output"
 
           if echo "$output" | grep -q "already exists"; then
-            echo "MS Marketplace: version exists → continuing"
             exit 0
+          fi
+
+          if [ $exit_code -ne 0 ]; then
+            exit $exit_code
           fi
 
       # 1️⃣1️⃣ Publish to GitPod (OpenVSX)
-      - name: Publish to GitPod Marketplace
-        if: steps.check_all.outputs.can_publish == 'true'
+      - name: Publish to GitPod Visual Studio Marketplace
+        if: steps.check_version.outputs.exists == 'false'
         run: |
-          echo "Publishing to OpenVSX/GitPod..."
+          echo "⏳ Publishing to Visual Studio Marketplace..."
           set +e
           output=$(npx ovsx publish -p ${{ secrets.GITPOD_MARKETPLACE_TOKEN }} 2>&1)
+          exit_code=$?
           echo "$output"
 
           if echo "$output" | grep -q "already exists"; then
-            echo "OpenVSX: version exists → continuing"
+            echo "⚠️ Detected 'already exists' message — publish actually succeeded."
             exit 0
           fi
 
+          if [ $exit_code -ne 0 ]; then
+            echo "❌ Publish failed with unexpected error."
+            exit $exit_code
+          fi
+
+          echo "✅ Publish step completed successfully."
+          
       # 1️⃣2️⃣ Commit version bump
       - name: Commit and push version bump
         env:
