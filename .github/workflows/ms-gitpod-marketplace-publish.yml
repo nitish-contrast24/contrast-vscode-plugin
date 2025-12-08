@@ -74,16 +74,34 @@ jobs:
       - name: Package extension
         run: vsce package
 
-      # 9️⃣ Always publish new version (no version check)
-      - name: Publish to Microsoft Marketplace
+      # 9️⃣ Always Check version in BOTH marketplaces
+      - name: Check if version already exists in Marketplace
+        id: check_version
         run: |
-           echo "Publishing new version to MS Marketplace..."
-           npx vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }}
+          EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Checking if $EXTENSION_ID@$VERSION already exists on Marketplace..."
+          if npx vsce show $EXTENSION_ID@$VERSION -p ${{ secrets.GITPOD_MARKETPLACE_TOKEN }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Version $VERSION already exists. Skipping publish."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Version $VERSION does not exist. Proceeding with publish."
+          fi
+      - name: Check if version already exists in Marketplace
+        id: check_version
+        run: |
+          EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Checking if $EXTENSION_ID@$VERSION already exists..."
 
-      - name: Publish to GitPod Marketplace
-        run: |
-          echo "Publishing new version to OpenVSX/GitPod..."
-          npx ovsx publish -p ${{ secrets.GITPOD_MARKETPLACE_TOKEN }}
+          if npx vsce show $EXTENSION_ID@$VERSION -p ${{ secrets.VS_MARKETPLACE_TOKEN }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Version exists — skipping publish."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "OK to publish."
+          fi
 
       # 🔟 Publish to Microsoft Marketplace ONLY IF SAFE
       - name: Publish to Visual Studio Marketplace
