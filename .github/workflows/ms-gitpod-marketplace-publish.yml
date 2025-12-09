@@ -137,26 +137,25 @@ jobs:
             echo "✔ Version safe to publish."
           fi
 
-      # 🔟 Publish to Microsoft Marketplace
-      - name: Validate Microsoft Marketplace Token
+      # 🔟 Publish to Microsoft Marketplace (both must publish or none)
+      - name: Publish to Visual Studio Marketplace
+        if: steps.check_version.outputs.exists == 'false'
         run: |
-          echo "🔐 Validating Microsoft Marketplace token..."
+          echo "Publishing to MS Marketplace..."
           set +e
+          output=$(npx vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }} 2>&1)
+          exit_code=$?
+          echo "$output"
 
-          EXT_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
-
-          npx vsce verify-pat \
-            --namespace "$(node -p "require('./package.json').publisher")" \
-            -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" > /dev/null 2>&1
-
-          if [ $? -ne 0 ]; then
-            echo "❌ INVALID Microsoft Marketplace Token"
+          if echo "$output" | grep -q "already exists"; then
             exit 1
           fi
 
-          echo "✅ Microsoft Marketplace token is valid"
+          if [ $exit_code -ne 0 ]; then
+            exit $exit_code
+          fi
 
-      # 1️⃣1️⃣ Publish to GitPod Marketplace
+      # 1️⃣1️⃣ Publish to GitPod Marketplace (must match MS result)
       - name: Publish to GitPod Marketplace
         if: steps.check_version.outputs.exists == 'false'
         run: |
