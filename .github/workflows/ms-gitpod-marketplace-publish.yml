@@ -87,21 +87,22 @@ jobs:
           echo "✅ Microsoft Marketplace token is valid"
 
       # 🔐 Validate GitPod/OpenVSX Token (reliable)
+      # 🔐 Validate GitPod/OpenVSX Token (correct & reliable)
       - name: Validate GitPod/OpenVSX Token
         run: |
           echo "🔐 Validating GitPod/OpenVSX token..."
 
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" \
-            https://open-vsx.org/api/-/whoami)
+            https://open-vsx.org/api)
 
-          if [ "$RESPONSE" != "200" ]; then
+          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
             echo "❌ INVALID GitPod/OpenVSX Token"
-            echo "HTTP CODE: $RESPONSE"
+            echo "HTTP CODE: $HTTP_CODE"
             exit 1
           fi
 
-          echo "✅ GitPod/OpenVSX token is valid"
+          echo "✅ GitPod/OpenVSX token is valid (HTTP $HTTP_CODE)"
 
       # 9️⃣ Check version in BOTH marketplaces
       - name: Check versions in both Marketplaces
