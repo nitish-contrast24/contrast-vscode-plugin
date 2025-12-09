@@ -73,15 +73,14 @@ jobs:
       - name: Validate Microsoft Marketplace Token
         run: |
           echo "🔐 Validating Microsoft Marketplace token..."
-          set +e
 
-          npx vsce publish --pat "${{ secrets.VS_MARKETPLACE_TOKEN }}" --no-yarn --skip-commit --skip-tag --dry-run >/dev/null 2>&1
-          STATUS=$?
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Basic $(printf ":%s" "${{ secrets.VS_MARKETPLACE_TOKEN }}" | base64 -w0)" \
+            https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1-preview.1)
 
-          set -e
-
-          if [ $STATUS -ne 0 ]; then
+          if [ "$RESPONSE" != "200" ]; then
             echo "❌ INVALID Microsoft Marketplace Token"
+            echo "HTTP CODE: $RESPONSE"
             exit 1
           fi
 
