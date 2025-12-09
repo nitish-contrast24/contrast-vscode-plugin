@@ -69,13 +69,15 @@ jobs:
       - name: Package extension
         run: vsce package
 
-      # 🔐 Validate Microsoft Marketplace Token (dry-run)
+      # 🔐 Validate Microsoft Marketplace Token (reliable)
       - name: Validate Microsoft Marketplace Token
         run: |
           echo "🔐 Validating Microsoft Marketplace token..."
           set +e
-          npx vsce publish --dry-run -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
+
+          npx vsce publish --pat "${{ secrets.VS_MARKETPLACE_TOKEN }}" --no-yarn --skip-commit --skip-tag --dry-run >/dev/null 2>&1
           STATUS=$?
+
           set -e
 
           if [ $STATUS -ne 0 ]; then
@@ -83,15 +85,17 @@ jobs:
             exit 1
           fi
 
-          echo "✅ Microsoft token VALID (dry-run succeeded)"
+          echo "✅ Microsoft Marketplace token is valid"
 
-      # 🔐 Validate GitPod / OpenVSX Token (dry-run)
+      # 🔐 Validate GitPod/OpenVSX Token (reliable)
       - name: Validate GitPod/OpenVSX Token
         run: |
           echo "🔐 Validating GitPod/OpenVSX token..."
           set +e
-          npx ovsx publish --dry-run -p "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
+
+          npx ovsx publish --pat "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" --dry-run >/dev/null 2>&1
           STATUS=$?
+
           set -e
 
           if [ $STATUS -ne 0 ]; then
@@ -99,7 +103,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ OpenVSX token VALID (dry-run succeeded)"
+          echo "✅ GitPod/OpenVSX token is valid"
 
       # 9️⃣ Check version in BOTH marketplaces
       - name: Check versions in both Marketplaces
@@ -138,7 +142,7 @@ jobs:
             echo "✔ Version safe to publish."
           fi
 
-      # 🔟 Publish to Microsoft Marketplace (both must publish or none)
+      # 🔟 Publish to Microsoft Marketplace
       - name: Publish to Visual Studio Marketplace
         if: steps.check_version.outputs.exists == 'false'
         run: |
@@ -156,7 +160,7 @@ jobs:
             exit $exit_code
           fi
 
-      # 1️⃣1️⃣ Publish to GitPod Marketplace (must match MS result)
+      # 1️⃣1️⃣ Publish to GitPod Marketplace
       - name: Publish to GitPod Marketplace
         if: steps.check_version.outputs.exists == 'false'
         run: |
