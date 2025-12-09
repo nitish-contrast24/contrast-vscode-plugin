@@ -73,21 +73,21 @@ jobs:
       - name: Validate Microsoft Marketplace Token
         run: |
           echo "🔐 Validating Microsoft Marketplace token..."
+          set +e
 
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Basic $(printf ":%s" "${{ secrets.VS_MARKETPLACE_TOKEN }}" | base64 -w0)" \
-            https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1-preview.1)
+          EXT_PUB=$(node -p "require('./package.json').publisher")
+          
+          npx vsce show $EXT_PUB \
+            -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" > /dev/null 2>&1
 
-          if [ "$RESPONSE" != "200" ]; then
+          if [ $? -ne 0 ]; then
             echo "❌ INVALID Microsoft Marketplace Token"
-            echo "HTTP CODE: $RESPONSE"
             exit 1
           fi
 
           echo "✅ Microsoft Marketplace token is valid"
 
       # 🔐 Validate GitPod/OpenVSX Token (reliable)
-      # 🔐 Validate GitPod/OpenVSX Token (correct & reliable)
       - name: Validate GitPod/OpenVSX Token
         run: |
           echo "🔐 Validating GitPod/OpenVSX token..."
