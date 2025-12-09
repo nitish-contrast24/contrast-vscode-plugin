@@ -90,15 +90,14 @@ jobs:
       - name: Validate GitPod/OpenVSX Token
         run: |
           echo "🔐 Validating GitPod/OpenVSX token..."
-          set +e
 
-          npx ovsx publish --pat "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" --dry-run >/dev/null 2>&1
-          STATUS=$?
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" \
+            https://open-vsx.org/api/-/whoami)
 
-          set -e
-
-          if [ $STATUS -ne 0 ]; then
+          if [ "$RESPONSE" != "200" ]; then
             echo "❌ INVALID GitPod/OpenVSX Token"
+            echo "HTTP CODE: $RESPONSE"
             exit 1
           fi
 
