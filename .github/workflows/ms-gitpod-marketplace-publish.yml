@@ -16,8 +16,6 @@ jobs:
       # 1️⃣ Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
       # 2️⃣ Setup Node.js
       - name: Set up Node.js
@@ -36,7 +34,6 @@ jobs:
       # 5️⃣ Run tests
       - name: Run tests
         run: npx jest || echo "No tests found"
-        
 
       # 6️⃣ Version bump x.y.z
       - name: Bump version
@@ -62,22 +59,19 @@ jobs:
           EOF
 
       # 7️⃣ Ensure vsce installed
-      - name: Ensure vsce is installed
-        run: |
-          if ! command -v vsce &> /dev/null; then
-            npm install -g @vscode/vsce
-          fi
+      - name: Install vsce and ovsx
+        run: npm install -g @vscode/vsce @openvsx/cli
 
       # 8️⃣ Package extension
       - name: Package extension
         run: vsce package
-        
-       # 🔐 Validate both marketplace tokens BEFORE ANY publishin
+
+      # 🔐 Validate Microsoft Marketplace Token (dry-run)
       - name: Validate Microsoft Marketplace Token
         run: |
           echo "🔐 Validating Microsoft Marketplace token..."
           set +e
-          npx vsce list-publishers -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
+          npx vsce publish --dry-run -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
           STATUS=$?
           set -e
 
@@ -86,15 +80,14 @@ jobs:
             exit 1
           fi
 
-          echo "✅ Microsoft Marketplace token is valid"
+          echo "✅ Microsoft token VALID (dry-run succeeded)"
 
-
-      # 🔐 Validate GitPod/OpenVSX Token
+      # 🔐 Validate GitPod / OpenVSX Token (dry-run)
       - name: Validate GitPod/OpenVSX Token
         run: |
           echo "🔐 Validating GitPod/OpenVSX token..."
           set +e
-          npx ovsx validate "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
+          npx ovsx publish --dry-run -p "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
           STATUS=$?
           set -e
 
@@ -103,8 +96,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ GitPod/OpenVSX token is valid"
-
+          echo "✅ OpenVSX token VALID (dry-run succeeded)"
 
       # 9️⃣ Check version in BOTH marketplaces
       - name: Check versions in both Marketplaces
@@ -115,43 +107,32 @@ jobs:
 
           echo "🔍 Checking extension: $EXTENSION_ID"
           echo "🔍 New version to publish: $VERSION"
-          echo ""
 
           ms_exists=false
           gitpod_exists=false
 
           echo "📌 Microsoft Marketplace:"
           MS_VERSION=$(npx vsce show $EXTENSION_ID -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" 2>/dev/null | grep "Version:" | awk '{print $2}')
+          echo "• MS Marketplace Version = ${MS_VERSION:-none}"
 
-          if [ -z "$MS_VERSION" ]; then
-            echo " ❌ Not published on Microsoft Marketplace"
-          else
-            echo " ✅ Current version on MS Marketplace = $MS_VERSION"
-            if [ "$MS_VERSION" = "$VERSION" ]; then ms_exists=true; fi
+          if [ "$MS_VERSION" = "$VERSION" ]; then
+            ms_exists=true
           fi
 
-          echo ""
-          echo "📌 GitPod / OpenVSX Marketplace:"
+          echo "📌 GitPod / OpenVSX:"
           GITPOD_VERSION=$(npx ovsx show $EXTENSION_ID -p "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" 2>/dev/null | grep "Version:" | awk '{print $2}')
+          echo "• GitPod Version = ${GITPOD_VERSION:-none}"
 
-          if [ -z "$GITPOD_VERSION" ]; then
-            echo " ❌ Not published on GitPod/OpenVSX"
-          else
-            echo " ✅ Current version on GitPod/OpenVSX = $GITPOD_VERSION"
-            if [ "$GITPOD_VERSION" = "$VERSION" ]; then gitpod_exists=true; fi
+          if [ "$GITPOD_VERSION" = "$VERSION" ]; then
+            gitpod_exists=true
           fi
-
-          echo ""
-          echo "-----------------------------------------"
-          echo "🧪 Comparing with new version: $VERSION"
-          echo "-----------------------------------------"
 
           if [ "$ms_exists" = true ] || [ "$gitpod_exists" = true ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "⛔ Version $VERSION already exists — blocking publish."
+            echo "⛔ Version already exists — blocking publish."
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "✔ Version $VERSION does NOT exist — safe to publish."
+            echo "✔ Version safe to publish."
           fi
 
       # 🔟 Publish to Microsoft Marketplace (both must publish or none)
@@ -190,7 +171,7 @@ jobs:
             echo "❌ GitPod publish failed — aborting to prevent version mismatch."
             exit $exit_code
           fi
-      
+
       # 1️⃣2️⃣ Commit version bump
       - name: Commit and push version bump
         env:
@@ -198,7 +179,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git add package.json package-lock.json
           git commit -m "Bump version to ${{ steps.bump.outputs.version }}" || echo "No changes"
           git push origin HEAD:${GITHUB_REF_NAME}
