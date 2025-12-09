@@ -73,15 +73,17 @@ jobs:
       - name: Validate Microsoft Marketplace Token
         run: |
           echo "🔐 Validating Microsoft Marketplace token..."
-          set +e
 
-          EXT_PUB=$(node -p "require('./package.json').publisher")
-          
-          npx vsce show $EXT_PUB \
-            -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" > /dev/null 2>&1
+          # Microsoft PAT must be encoded as base64("PAT:") or base64("anyuser:PAT")
+          AUTH=$(printf "user:%s" "${{ secrets.VS_MARKETPLACE_TOKEN }}" | base64)
 
-          if [ $? -ne 0 ]; then
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Basic $AUTH" \
+            "https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1-preview.1")
+
+          if [ "$RESPONSE" != "200" ]; then
             echo "❌ INVALID Microsoft Marketplace Token"
+            echo "HTTP CODE: $RESPONSE"
             exit 1
           fi
 
@@ -142,22 +144,23 @@ jobs:
           fi
 
       # 🔟 Publish to Microsoft Marketplace
-      - name: Publish to Visual Studio Marketplace
-        if: steps.check_version.outputs.exists == 'false'
+      - name: Validate Microsoft Marketplace Token
         run: |
-          echo "Publishing to MS Marketplace..."
+          echo "🔐 Validating Microsoft Marketplace token..."
           set +e
-          output=$(npx vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }} 2>&1)
-          exit_code=$?
-          echo "$output"
 
-          if echo "$output" | grep -q "already exists"; then
+          EXT_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
+
+          npx vsce verify-pat \
+            --namespace "$(node -p "require('./package.json').publisher")" \
+            -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" > /dev/null 2>&1
+
+          if [ $? -ne 0 ]; then
+            echo "❌ INVALID Microsoft Marketplace Token"
             exit 1
           fi
 
-          if [ $exit_code -ne 0 ]; then
-            exit $exit_code
-          fi
+          echo "✅ Microsoft Marketplace token is valid"
 
       # 1️⃣1️⃣ Publish to GitPod Marketplace
       - name: Publish to GitPod Marketplace
