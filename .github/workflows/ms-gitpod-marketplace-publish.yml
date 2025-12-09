@@ -75,9 +75,9 @@ jobs:
        # 🔐 Validate both marketplace tokens BEFORE ANY publishin
       - name: Validate Microsoft Marketplace Token
         run: |
-          echo "🔐 Validating Microsoft Marketplace token using vsce verify-pat..."
+          echo "🔐 Validating Microsoft Marketplace token..."
           set +e
-          npx vsce verify-pat "${{ secrets.VS_MARKETPLACE_TOKEN }}"
+          npx vsce list-publishers -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
           STATUS=$?
           set -e
 
@@ -86,7 +86,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ Microsoft Marketplace Token is valid"
+          echo "✅ Microsoft Marketplace token is valid"
 
 
       # 🔐 Validate GitPod/OpenVSX Token
@@ -94,7 +94,7 @@ jobs:
         run: |
           echo "🔐 Validating GitPod/OpenVSX token..."
           set +e
-          npx ovsx validate "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}"
+          npx ovsx validate "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
           STATUS=$?
           set -e
 
@@ -103,7 +103,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ GitPod/OpenVSX Token is valid"
+          echo "✅ GitPod/OpenVSX token is valid"
 
 
       # 9️⃣ Check version in BOTH marketplaces
