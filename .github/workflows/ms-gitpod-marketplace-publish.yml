@@ -71,6 +71,43 @@ jobs:
       # 8️⃣ Package extension
       - name: Package extension
         run: vsce package
+        
+       # 🔐 Validate both marketplace tokens BEFORE ANY publishin
+      - name: Validate Microsoft Marketplace Token
+        run: |
+          EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
+
+          echo "🔐 Validating Microsoft Marketplace token..."
+          set +e
+          npx vsce show "$EXTENSION_ID" -p "${{ secrets.VS_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
+          STATUS=$?
+          set -e
+
+          if [ $STATUS -ne 0 ]; then
+            echo "❌ INVALID Microsoft Marketplace Token"
+            exit 1
+          fi
+
+          echo "✅ Microsoft Marketplace token is valid"
+
+      # 🔐 Validate GitPod/OpenVSX Token
+      - name: Validate GitPod/OpenVSX Token
+        run: |
+          EXTENSION_ID=$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")
+
+          echo "🔐 Validating GitPod/OpenVSX token..."
+          set +e
+          npx ovsx show "$EXTENSION_ID" -p "${{ secrets.GITPOD_MARKETPLACE_TOKEN }}" >/dev/null 2>&1
+          STATUS=$?
+          set -e
+
+          if [ $STATUS -ne 0 ]; then
+            echo "❌ INVALID GitPod/OpenVSX Token"
+            exit 1
+          fi
+
+          echo "✅ GitPod/OpenVSX token is valid"
+
 
       # 9️⃣ Check version in BOTH marketplaces
       - name: Check versions in both Marketplaces
