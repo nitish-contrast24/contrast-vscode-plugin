@@ -72,33 +72,6 @@ jobs:
       - name: Package extension
         run: vsce package
 
-      # 🔐 Validate both marketplace tokens BEFORE ANY publishing
-      - name: Validate Marketplace Tokens
-        id: validate_tokens
-        run: |
-          echo "🔐 Validating Microsoft Marketplace token..."
-          set +e
-          npx vsce show "ms-vscode.vscode-typescript-next" -p ${{ secrets.VS_MARKETPLACE_TOKEN }} >/dev/null 2>&1
-          MS_STATUS=$?
-
-          if [ $MS_STATUS -ne 0 ]; then
-            echo "❌ INVALID Microsoft Marketplace Token"
-            exit 1  # ⛔ STOPS the  pipeline
-          fi
-          echo "✅ Microsoft token is valid"
-          echo ""
-
-          echo "🔐 Validating GitPod/OpenVSX token..."
-          npx ovsx show "ms-vscode.vscode-typescript-next" -p ${{ secrets.GITPOD_MARKETPLACE_TOKEN }} >/dev/null 2>&1
-          GP_STATUS=$?
-
-          if [ $GP_STATUS -ne 0 ]; then
-            echo "❌ INVALID GitPod/OpenVSX Token"
-            exit 1  # ⛔ STOPS the  pipeline
-          fi
-
-          echo "✅ GitPod token is valid"
-
       # 9️⃣ Check version in BOTH marketplaces
       - name: Check versions in both Marketplaces
         id: check_version
